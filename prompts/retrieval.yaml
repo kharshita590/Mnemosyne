@@ -1,0 +1,7 @@
+expand_query: |
+  Given the user's query, generate 2-3 alternative phrasings that might
+  match related memories stored with different wording.
+  Return each on a new line, no numbering.
+
+  Query: {query}
+  Alternatives:

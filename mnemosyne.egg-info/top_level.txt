@@ -1,0 +1,14 @@
+agents
+chunking
+config
+embedding
+evals
+infra
+jobs
+llm
+mcp_local
+memory
+observability
+prompts
+retrieval
+storage

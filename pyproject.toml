@@ -1,0 +1,47 @@
+[project]
+name = "mnemosyne"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "sqlalchemy>=2.0",
+    "asyncpg",
+    "pgvector",
+    "alembic",
+    "redis>=5.0",
+    "langchain-text-splitters",
+    "sentence-transformers",
+    "openai>=1.0",
+    "anthropic>=0.40",
+    "google-generativeai>=0.8",
+    "tiktoken",
+    "cohere",
+    "langgraph>=0.2",
+    "langchain-core",
+    "fastmcp",
+    "langfuse>=3.0",
+    "structlog",
+    "pydantic-settings",
+    "boto3",
+    "cryptography",
+    "httpx",
+    "greenlet>=3.5.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-cov",
+    "ruff",
+    "mypy",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agents*", "chunking*", "config*", "embedding*", "evals*", "infra*", "jobs*", "llm*", "mcp_local*", "memory*", "observability*", "prompts*", "retrieval*", "storage*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+line-length = 100

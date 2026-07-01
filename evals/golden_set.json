@@ -1,0 +1,250 @@
+[
+  {
+    "user_id": "eval-user-001",
+    "query": "what database does the user use for vector search?",
+    "expected_content_keywords": ["pgvector", "postgresql"],
+    "description": "technology preference — long_term",
+    "tier": "long_term",
+    "category": "technology"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what framework does the user prefer for building agents?",
+    "expected_content_keywords": ["langgraph"],
+    "description": "technology preference — long_term",
+    "tier": "long_term",
+    "category": "technology"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "where does the user live?",
+    "expected_content_keywords": ["bangalore", "mumbai", "city", "location"],
+    "description": "location fact — tests conflict resolution (should return latest)",
+    "tier": "long_term",
+    "category": "conflict_resolution"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what is the user's name?",
+    "expected_content_keywords": ["akhilesh"],
+    "description": "identity fact — long_term, high expected recall",
+    "tier": "long_term",
+    "category": "identity"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what UI theme does the user prefer?",
+    "expected_content_keywords": ["dark mode", "dark"],
+    "description": "preference fact — dedup test (stored multiple times, should appear once)",
+    "tier": "long_term",
+    "category": "preference"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what programming language does the user use most?",
+    "expected_content_keywords": ["python"],
+    "description": "technology preference — query expansion test (may be phrased differently)",
+    "tier": "long_term",
+    "category": "technology"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "recent bug the user fixed",
+    "expected_content_keywords": ["bug", "fix", "auth", "redis", "module"],
+    "description": "episodic event — tests episodic retrieval",
+    "tier": "episodic",
+    "category": "event"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what MCP server is the user building?",
+    "expected_content_keywords": ["mnemosyne", "memory", "mcp"],
+    "description": "project context — semantic tier",
+    "tier": "semantic",
+    "category": "project"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what editor does the user code in?",
+    "expected_content_keywords": ["vs code", "vscode", "visual studio"],
+    "description": "editor preference — alternative phrasing from 'code editor'",
+    "tier": "long_term",
+    "category": "preference"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what cloud provider does the user work with?",
+    "expected_content_keywords": ["aws", "amazon", "azure", "gcp"],
+    "description": "cloud technology — tests entity extraction recall",
+    "tier": "long_term",
+    "category": "technology"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what caching system is used in the project?",
+    "expected_content_keywords": ["redis", "cache"],
+    "description": "technology — tests multi-keyword matching",
+    "tier": "long_term",
+    "category": "technology"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what is the team's standup schedule?",
+    "expected_content_keywords": ["standup", "daily", "morning", "10am"],
+    "description": "routine/schedule — episodic or long_term",
+    "tier": "episodic",
+    "category": "routine"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "how many engineers are on the team?",
+    "expected_content_keywords": ["12", "twelve", "engineers", "team"],
+    "description": "numeric fact — tests exact number recall",
+    "tier": "long_term",
+    "category": "team"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what project did the user just ship?",
+    "expected_content_keywords": ["payment", "shipped", "module"],
+    "description": "recent event — episodic, tests recency",
+    "tier": "episodic",
+    "category": "event"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what certification is the user studying for?",
+    "expected_content_keywords": ["aws", "solutions architect", "exam", "certification"],
+    "description": "goal/learning — tests goal state retrieval",
+    "tier": "long_term",
+    "category": "learning"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what book recently influenced the user?",
+    "expected_content_keywords": ["atomic habits", "james clear", "book"],
+    "description": "reading/learning — tests cultural/preference recall",
+    "tier": "episodic",
+    "category": "learning"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what is the user's morning routine?",
+    "expected_content_keywords": ["6am", "exercise", "morning", "wake"],
+    "description": "habit — tests routine extraction",
+    "tier": "long_term",
+    "category": "routine"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what happened to the user's dog?",
+    "expected_content_keywords": ["max", "dog", "food poisoning", "vet", "golden retriever"],
+    "description": "personal event — episodic, tests pet/personal memory",
+    "tier": "episodic",
+    "category": "personal"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what cuisine is the user learning to cook?",
+    "expected_content_keywords": ["italian", "cook", "carbonara"],
+    "description": "hobby — tests interests/hobbies retrieval",
+    "tier": "episodic",
+    "category": "hobby"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what are the user's dietary preferences?",
+    "expected_content_keywords": ["vegetarian", "diet", "food"],
+    "description": "dietary preference — tests lifestyle facts",
+    "tier": "long_term",
+    "category": "preference"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what embedding model is used in the project?",
+    "expected_content_keywords": ["bge", "sentence-transformers", "embedding", "384"],
+    "description": "technical detail — tests specific model name recall",
+    "tier": "long_term",
+    "category": "technology"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "how is memory decay calculated?",
+    "expected_content_keywords": ["decay", "half-life", "exponential", "30 days"],
+    "description": "technical concept — tests semantic/conceptual retrieval",
+    "tier": "semantic",
+    "category": "technical_concept"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what company does the user work at?",
+    "expected_content_keywords": ["anthropic", "fintech", "startup", "company"],
+    "description": "employer — tests entity (organization) extraction",
+    "tier": "long_term",
+    "category": "identity"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what ports does the docker setup use?",
+    "expected_content_keywords": ["5436", "6379", "postgres", "redis"],
+    "description": "technical config — tests numeric/config memory",
+    "tier": "long_term",
+    "category": "technical_config"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what is the working memory TTL?",
+    "expected_content_keywords": ["4 hours", "14400", "ttl", "working memory"],
+    "description": "config value — tests numeric config recall",
+    "tier": "long_term",
+    "category": "technical_config"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what is the user's pet's name and breed?",
+    "expected_content_keywords": ["max", "golden retriever"],
+    "description": "multi-attribute — tests retrieving two facts from one memory",
+    "tier": "episodic",
+    "category": "personal"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what sprint ceremony does the team have on Fridays?",
+    "expected_content_keywords": ["sprint review", "friday"],
+    "description": "schedule — tests specific day + event retrieval",
+    "tier": "episodic",
+    "category": "routine"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what resources is the user using to prepare for AWS?",
+    "expected_content_keywords": ["stephane maarek", "udemy", "adrian cantrill", "practice exam"],
+    "description": "multi-entity — tests multiple resource names in one query",
+    "tier": "long_term",
+    "category": "learning"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what is the user's neighborhood in their city?",
+    "expected_content_keywords": ["koramangala", "neighborhood", "area"],
+    "description": "sub-location — tests entity granularity (city vs neighborhood)",
+    "tier": "long_term",
+    "category": "identity"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "what secondary language does the user code in?",
+    "expected_content_keywords": ["go", "golang", "cli", "infrastructure"],
+    "description": "secondary preference — tests recall when primary and secondary exist",
+    "tier": "long_term",
+    "category": "technology"
+  },
+  {
+    "user_id": "eval-user-001",
+    "query": "which cooking author's book does the user follow?",
+    "expected_content_keywords": ["marcella hazan", "cookbook"],
+    "description": "named entity — tests author/book recall",
+    "tier": "episodic",
+    "category": "hobby"
+  }
+]

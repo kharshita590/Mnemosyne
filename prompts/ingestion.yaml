@@ -1,0 +1,53 @@
+extract_entities: |
+  Extract named entities from the text below. Return a JSON object with these keys:
+  - "people": list of person names mentioned
+  - "places": list of locations mentioned
+  - "technologies": list of tools, languages, frameworks, or systems mentioned
+  - "preferences": list of stated user preferences (e.g. "prefers dark mode")
+  - "topics": list of general topics covered
+
+  Return ONLY the JSON object, no explanation.
+
+  Text: {content}
+
+extract_facts: |
+  You are a memory extraction assistant.
+  Given the following conversation content, extract the key facts, preferences,
+  decisions, and context that would be useful to remember for future conversations.
+  Return each fact as a separate line. Be concise. Do not invent information.
+
+  Content:
+  {content}
+
+classify_tier: |
+  Classify the following memory into one of these tiers:
+  - working: in-session context, relevant only for this conversation
+  - episodic: a specific event or action that happened at a point in time
+  - long_term: a stable fact, preference, or pattern about the user
+  - semantic: general knowledge extracted from multiple episodes
+
+  Memory: {content}
+  Tier:
+
+resolve_conflict: |
+  You are a memory conflict resolver. Decide how a new memory relates to each existing memory.
+
+  NEW MEMORY:
+  {new_memory}
+
+  EXISTING MEMORIES (one per line, format: ID|||CONTENT):
+  {existing_ids_and_content}
+
+  For each existing memory output exactly one line using this format:
+  ID|||ACTION
+
+  ACTION must be exactly one of:
+  - KEEP      (new memory adds different information, store both)
+  - UPDATE    (new memory contradicts or supersedes the existing one, replace it)
+  - DUPLICATE (new memory says the same thing, discard the new one)
+
+  Rules:
+  - Contradiction example: existing="lives in Mumbai", new="lives in Bangalore" → UPDATE
+  - Same fact different words: existing="User is called Akhilesh", new="My name is Akhilesh" → DUPLICATE
+  - New information: existing="likes Python", new="dislikes JavaScript" → KEEP
+  - Output ONLY the ID|||ACTION lines. No explanation, no extra text, no blank lines.

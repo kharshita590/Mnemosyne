@@ -1,0 +1,8 @@
+summarize_session: |
+  Summarize the key information from this conversation that should be
+  stored as a memory for future sessions. Be specific and factual.
+
+  Conversation:
+  {conversation}
+
+  Summary:

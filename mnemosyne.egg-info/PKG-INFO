@@ -1,0 +1,32 @@
+Metadata-Version: 2.4
+Name: mnemosyne
+Version: 0.1.0
+Requires-Python: >=3.11
+Requires-Dist: sqlalchemy>=2.0
+Requires-Dist: asyncpg
+Requires-Dist: pgvector
+Requires-Dist: alembic
+Requires-Dist: redis>=5.0
+Requires-Dist: langchain-text-splitters
+Requires-Dist: sentence-transformers
+Requires-Dist: openai>=1.0
+Requires-Dist: anthropic>=0.40
+Requires-Dist: google-generativeai>=0.8
+Requires-Dist: tiktoken
+Requires-Dist: cohere
+Requires-Dist: langgraph>=0.2
+Requires-Dist: langchain-core
+Requires-Dist: fastmcp
+Requires-Dist: langfuse>=3.0
+Requires-Dist: structlog
+Requires-Dist: pydantic-settings
+Requires-Dist: boto3
+Requires-Dist: cryptography
+Requires-Dist: httpx
+Requires-Dist: greenlet>=3.5.2
+Provides-Extra: dev
+Requires-Dist: pytest; extra == "dev"
+Requires-Dist: pytest-asyncio; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: ruff; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
