@@ -7,7 +7,7 @@ from config.logging import logger
 from llm.factory import get_llm
 from memory.types import MemoryItem
 from storage.models import MemoryTier
-from storage.redis import get_working_memory
+from storage.redis import append_to_working_memory, get_working_memory
 
 _BASE_SYSTEM_PROMPT = (
     "You are a helpful assistant with access to the user's personal memory. "
@@ -31,11 +31,13 @@ async def load_working_memory_node(state: SessionState) -> SessionState:
     return state
 
 
-async def retrieve_episodic_node(state: SessionState) -> SessionState:
+async def retrieve_episodic_node(state: SessionState) -> dict:
     """Retrieve recent episodic memories relevant to session context."""
     query = state.user_message or state.session_context
     if not query:
-        return state
+        return {}
+    # retrieval_graph.ainvoke returns a dict (LangGraph's compiled runtime
+    # representation), not a RetrievalState instance — index it, don't attribute-access it.
     result = await retrieval_graph.ainvoke(
         RetrievalState(
             user_id=state.user_id,
@@ -43,15 +45,18 @@ async def retrieve_episodic_node(state: SessionState) -> SessionState:
             tier=MemoryTier.EPISODIC,
         )
     )
-    state.episodic_memories = result.final_memories
-    return state
+    # Only return the field this node owns — load_working/retrieve_episodic/
+    # retrieve_long_term run as parallel branches in the same graph superstep,
+    # so returning the full state here would collide with the other branch's
+    # update and raise INVALID_CONCURRENT_GRAPH_UPDATE.
+    return {"episodic_memories": result.get("final_memories", [])}
 
 
-async def retrieve_long_term_node(state: SessionState) -> SessionState:
+async def retrieve_long_term_node(state: SessionState) -> dict:
     """Retrieve long-term stable facts relevant to session context."""
     query = state.user_message or state.session_context
     if not query:
-        return state
+        return {}
     result = await retrieval_graph.ainvoke(
         RetrievalState(
             user_id=state.user_id,
@@ -59,8 +64,7 @@ async def retrieve_long_term_node(state: SessionState) -> SessionState:
             tier=MemoryTier.LONG_TERM,
         )
     )
-    state.long_term_memories = result.final_memories
-    return state
+    return {"long_term_memories": result.get("final_memories", [])}
 
 
 async def inject_node(state: SessionState) -> SessionState:
@@ -122,3 +126,26 @@ async def generate_node(state: SessionState) -> SessionState:
         logger.error("generate_failed", error=str(e))
 
     return state
+
+
+async def append_working_memory_node(state: SessionState) -> dict:
+    """
+    Persist this turn to Redis working memory so a later session_init in the
+    same conversation_id has something to load, and end_session_tool has
+    something to summarize/promote. Previously nothing in the codebase ever
+    called append_to_working_memory, so working memory was always empty —
+    this is the write side of that pipeline.
+
+    Skipped when there's no user_message (a bare session_init call has
+    nothing to log yet).
+    """
+    if not state.user_message:
+        return {}
+    await append_to_working_memory(
+        state.user_id, state.conversation_id, {"role": "user", "content": state.user_message}
+    )
+    if state.response:
+        await append_to_working_memory(
+            state.user_id, state.conversation_id, {"role": "assistant", "content": state.response}
+        )
+    return {}

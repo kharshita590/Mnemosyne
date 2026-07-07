@@ -7,22 +7,33 @@ from datetime import datetime, timezone
 from agents.router import Intent, route
 from config.logging import logger
 from mcp_local.sanitize import sanitize_input, sanitize_output
+from storage.models import IngestJobStatus
 from storage.pg import (
+    create_ingest_job,
     delete_memories_bulk,
     delete_memory,
     get_memory_by_id,
+    mark_ingest_job,
     search_memories_by_topic,
     upsert_user,
 )
+from storage.redis import append_to_working_memory
 
 
-async def _run_ingest(user_id: str, content: str, conversation_id: str, job_id: str) -> None:
-    """Background task — runs the full ingestion pipeline without blocking the caller."""
+async def _run_ingest(job_id: _uuid.UUID, user_id: str, content: str, conversation_id: str) -> None:
+    """
+    Background task — runs the full ingestion pipeline without blocking the caller.
+    The job row was already persisted as 'pending' before this was scheduled, so if
+    the process dies here the job is recoverable via jobs/retry_stuck_ingests.py
+    instead of silently vanishing.
+    """
     try:
         await route(Intent.INGEST, user_id=user_id, content=content, conversation_id=conversation_id)
-        logger.info("async_ingest_done", job_id=job_id)
+        await mark_ingest_job(job_id, status=IngestJobStatus.SUCCESS)
+        logger.info("async_ingest_done", job_id=str(job_id))
     except Exception as e:
-        logger.error("async_ingest_failed", job_id=job_id, error=str(e))
+        await mark_ingest_job(job_id, status=IngestJobStatus.FAILED, error=str(e))
+        logger.error("async_ingest_failed", job_id=str(job_id), error=str(e))
 
 
 async def ingest_memory(
@@ -34,16 +45,23 @@ async def ingest_memory(
     Store new information from the current conversation.
     Returns immediately with a job_id — ingestion runs in the background.
     Tier is automatically classified by the LLM during ingestion.
+
+    The job is persisted to Postgres as 'pending' *before* scheduling the
+    background task. If the server crashes mid-ingestion, the row survives
+    and jobs/retry_stuck_ingests.py can find and replay it.
     """
     clean_content = sanitize_input(content)
-    job_id = str(_uuid.uuid4())
-
-    # Fire-and-forget: schedule ingestion without blocking the MCP caller
-    asyncio.create_task(
-        _run_ingest(user_id, clean_content, conversation_id, job_id)
+    job = await create_ingest_job(
+        user_external_id=user_id, content=clean_content, conversation_id=conversation_id
     )
 
-    return {"success": True, "job_id": job_id, "status": "ingesting"}
+    # Scheduled only after the durable record exists — a crash before this line
+    # loses nothing; a crash after it leaves a recoverable 'pending' row.
+    asyncio.create_task(
+        _run_ingest(job.id, user_id, clean_content, conversation_id)
+    )
+
+    return {"success": True, "job_id": str(job.id), "status": "ingesting"}
 
 
 async def retrieve_memory(
@@ -102,6 +120,66 @@ async def session_init(
         "success": True,
         "memory_block": state.get("injected_prompt", ""),
         "has_memories": bool(state.get("injected_prompt")),
+    }
+
+
+async def remember_turn(
+    user_id: str,
+    conversation_id: str,
+    role: str,
+    content: str,
+) -> dict:
+    """
+    Log one turn (a user message or an assistant reply) into Redis working
+    memory for this conversation. For clients that generate their own
+    responses (Claude Desktop, Cursor) and use session_init/retrieve_memory
+    rather than chat_tool — call this once per turn so working memory
+    actually accumulates, and end_session_tool has something to summarize
+    into a permanent episodic memory.
+    """
+    if role not in ("user", "assistant"):
+        return {"success": False, "error": "role must be 'user' or 'assistant'"}
+    clean_content = sanitize_input(content)
+    await append_to_working_memory(
+        user_id, conversation_id, {"role": role, "content": clean_content}
+    )
+    return {"success": True}
+
+
+async def chat(
+    user_id: str,
+    conversation_id: str,
+    user_message: str,
+) -> dict:
+    """
+    Memory-augmented chat: loads working/episodic/long-term memory, injects it
+    into the system prompt, and generates a response with the configured LLM
+    (llm/factory.get_llm — provider chosen via LLM_PROVIDER env var).
+
+    Unlike session_init (which only returns the memory block for the caller's
+    own LLM to use), this runs generation server-side. Returns success=False
+    if no LLM provider is configured, since there is nothing to generate with.
+    """
+    clean_message = sanitize_input(user_message)
+
+    state = await route(
+        Intent.CHAT,
+        user_id=user_id,
+        conversation_id=conversation_id,
+        user_message=clean_message,
+    )
+
+    if state.get("error"):
+        return {"success": False, "error": state["error"]}
+
+    response = state.get("response", "")
+    if not response:
+        return {"success": False, "error": "no LLM provider configured — set LLM_PROVIDER"}
+
+    return {
+        "success": True,
+        "response": sanitize_output(response),
+        "memory_block": state.get("injected_prompt", ""),
     }
 
 

@@ -6,15 +6,28 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import JSONResponse
 
 from config.logging import configure_logging
 from config.settings import settings
 from memory.promote import promote_working_memory
-from mcp_local.tools import forget_memories, forget_memory, ingest_memory, retrieve_memory, session_init
+from observability.health import check_health
+from mcp_local.tools import (
+    chat, forget_memories, forget_memory, ingest_memory, remember_turn, retrieve_memory,
+    session_init,
+)
 
 configure_logging()
 
 mcp = FastMCP("Mnemosyne Memory Server")
+
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health(request: Request) -> JSONResponse:
+    result = await check_health()
+    status_code = 200 if result["status"] == "healthy" else 503
+    return JSONResponse(result, status_code=status_code)
 
 # ---------------------------------------------------------------------------
 # Auth guard
@@ -79,6 +92,42 @@ async def session_init_tool(
 
 
 @mcp.tool()
+async def chat_tool(
+    user_id: str,
+    conversation_id: str,
+    user_message: str,
+    api_key: str = "",
+) -> dict:
+    """
+    Memory-augmented chat. Loads relevant memories, injects them into the
+    system prompt, and generates a response with the server's configured LLM.
+    Requires LLM_PROVIDER to be set — returns an error if no provider is configured.
+    """
+    if err := _check_auth(api_key):
+        return err
+    return await chat(user_id, conversation_id, user_message)
+
+
+@mcp.tool()
+async def remember_turn_tool(
+    user_id: str,
+    conversation_id: str,
+    role: str,
+    content: str,
+    api_key: str = "",
+) -> dict:
+    """
+    Log one conversation turn ('user' or 'assistant') into working memory.
+    Call this once per turn if you generate responses yourself (rather than
+    using chat_tool) so working memory accumulates and end_session_tool has
+    something to promote to permanent storage.
+    """
+    if err := _check_auth(api_key):
+        return err
+    return await remember_turn(user_id, conversation_id, role, content)
+
+
+@mcp.tool()
 async def end_session_tool(
     user_id: str,
     conversation_id: str,
@@ -138,4 +187,5 @@ async def forget_memories_tool(
 
 
 if __name__ == "__main__":
-    mcp.run()
+    port = int(os.environ.get("PORT", 8080))
+    mcp.run(transport="http", host="0.0.0.0", port=port)

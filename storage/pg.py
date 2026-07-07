@@ -9,7 +9,7 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from config.settings import settings
-from storage.models import Base, Memory, MemoryTier, User
+from storage.models import Base, IngestJob, IngestJobStatus, Memory, MemoryTier, User
 
 engine = create_async_engine(
     settings.database_url,
@@ -265,6 +265,48 @@ async def delete_memories_bulk(
 
         result = await session.execute(stmt)
         return result.rowcount
+
+
+async def create_ingest_job(
+    *, user_external_id: str, content: str, conversation_id: str | None
+) -> IngestJob:
+    """Persist a pending job *before* the background ingestion task is scheduled,
+    so a server crash/restart leaves a record instead of silently losing the write."""
+    async with get_session() as session:
+        job = IngestJob(
+            user_external_id=user_external_id,
+            content=content,
+            conversation_id=conversation_id or None,
+            status=IngestJobStatus.PENDING.value,
+        )
+        session.add(job)
+        await session.flush()
+        return job
+
+
+async def mark_ingest_job(job_id: uuid.UUID, *, status: IngestJobStatus, error: str | None = None) -> None:
+    async with get_session() as session:
+        await session.execute(
+            update(IngestJob)
+            .where(IngestJob.id == job_id)
+            .values(status=status.value, error=error)
+        )
+
+
+async def get_stuck_ingest_jobs(*, older_than_minutes: int = 15, limit: int = 200) -> list[IngestJob]:
+    """Jobs still 'pending' past a reasonable ingestion time — the process that
+    scheduled them likely crashed or was restarted before the task finished."""
+    async with get_session() as session:
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=older_than_minutes)
+        stmt = (
+            select(IngestJob)
+            .where(IngestJob.status == IngestJobStatus.PENDING.value)
+            .where(IngestJob.created_at < cutoff)
+            .order_by(IngestJob.created_at.asc())
+            .limit(limit)
+        )
+        result = await session.execute(stmt)
+        return list(result.scalars().all())
 
 
 async def search_memories_by_topic(

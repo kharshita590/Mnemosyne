@@ -81,3 +81,40 @@ class Memory(Base):
         Index("ix_memories_user_tier", "user_id", "tier"),
         Index("ix_memories_user_created", "user_id", "created_at"),
     )
+
+
+class IngestJobStatus(str, Enum):
+    PENDING = "pending"
+    SUCCESS = "success"
+    FAILED = "failed"
+
+
+class IngestJob(Base):
+    """
+    Durability record for background ingestion. Written *before* the async
+    ingestion task is scheduled so a crashed/restarted server can find and
+    replay jobs that never finished, instead of silently losing them.
+    """
+
+    __tablename__ = "ingest_jobs"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    user_external_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    conversation_id: Mapped[str | None] = mapped_column(String(255))
+    status: Mapped[str] = mapped_column(String(20), default=IngestJobStatus.PENDING.value, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(timezone.utc),
+        onupdate=lambda: datetime.now(timezone.utc),
+    )
+
+    __table_args__ = (
+        Index("ix_ingest_jobs_status_created", "status", "created_at"),
+    )

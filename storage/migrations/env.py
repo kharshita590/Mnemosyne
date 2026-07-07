@@ -4,11 +4,17 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
+from config.settings import settings
 from storage.models import Base
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
+
+# Always defer to the app's env-driven settings rather than the static URL
+# in alembic.ini, so `alembic upgrade head` targets the right DB in every
+# environment (local Docker Postgres vs. the deployed Supabase instance).
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 target_metadata = Base.metadata
 
