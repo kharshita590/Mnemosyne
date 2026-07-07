@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: mnemosyne-mcp
+    runtime: docker
+    dockerfilePath: ./infra/Dockerfile
+    dockerContext: .
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: EMBEDDING_PROVIDER
+        value: local
+      - key: ENCRYPT_KEY
+        sync: false
+      - key: MCP_API_KEY
+        sync: false
