@@ -187,5 +187,12 @@ async def forget_memories_tool(
 
 
 if __name__ == "__main__":
+    print("=== Server starting ===", flush=True)
     port = int(os.environ.get("PORT", 8080))
-    mcp.run(transport="http", host="0.0.0.0", port=port)
+    print(f"PORT={port}", flush=True)
+
+    mcp.run(
+        transport="http",
+        host="0.0.0.0",
+        port=port,
+    )
