@@ -17,7 +17,7 @@ from storage.pg import (
     search_memories_by_topic,
     upsert_user,
 )
-from storage.redis import append_to_working_memory
+from storage.redis import append_to_working_memory, get_working_memory
 
 
 async def _run_ingest(job_id: _uuid.UUID, user_id: str, content: str, conversation_id: str) -> None:
@@ -94,6 +94,24 @@ async def retrieve_memory(
         }
         for m in state.get("final_memories", [])
     ]
+
+    # Check active Redis working memory turns if conversation_id was provided
+    if conversation_id:
+        active_turns = await get_working_memory(user_id, conversation_id)
+        query_lower = clean_query.lower()
+        for idx, turn in enumerate(active_turns):
+            turn_content = turn.get("content", "")
+            if query_lower in turn_content.lower():
+                memories.insert(
+                    0,
+                    {
+                        "id": f"wm-{conversation_id}-{idx}",
+                        "content": sanitize_output(turn_content),
+                        "tier": "working",
+                        "score": 1.0,
+                    },
+                )
+
     return {"success": True, "memories": memories}
 
 

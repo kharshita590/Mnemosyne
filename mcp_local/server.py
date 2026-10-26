@@ -53,9 +53,10 @@ async def ingest_memory_tool(
     api_key: str = "",
 ) -> dict:
     """
-    Store information from a conversation into memory.
-    The tier (working/episodic/long_term/semantic) is automatically classified by the LLM.
-    Ingestion is async — returns a job_id immediately.
+    Store explicit facts, user preferences, instructions, or decisions into
+    persistent long-term memory for immediate semantic and hybrid retrieval.
+    Always call this whenever the user expresses a preference, profile detail,
+    or project rule that should persist across future sessions.
     """
     if err := _check_auth(api_key):
         return err
@@ -69,7 +70,11 @@ async def retrieve_memory_tool(
     conversation_id: str = "",
     api_key: str = "",
 ) -> dict:
-    """Retrieve memories relevant to the given query for a user."""
+    """
+    Retrieve relevant memories for a user query via hybrid vector + BM25 search.
+    If conversation_id is provided, also checks active conversation turns in
+    working memory so recently remembered turns are immediately accessible.
+    """
     if err := _check_auth(api_key):
         return err
     return await retrieve_memory(user_id, query, conversation_id)
@@ -117,10 +122,9 @@ async def remember_turn_tool(
     api_key: str = "",
 ) -> dict:
     """
-    Log one conversation turn ('user' or 'assistant') into working memory.
-    Call this once per turn if you generate responses yourself (rather than
-    using chat_tool) so working memory accumulates and end_session_tool has
-    something to promote to permanent storage.
+    Append one dialogue turn ('user' or 'assistant') to short-term scratchpad
+    working memory for the active conversation. Use this to keep conversation
+    history in working memory so end_session_tool can summarize it later.
     """
     if err := _check_auth(api_key):
         return err
