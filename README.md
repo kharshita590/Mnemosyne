@@ -1,191 +1,170 @@
 # Mnemosyne
 
-A persistent memory layer for LLM applications. Stores, retrieves, and injects relevant context from past conversations so your AI assistant remembers who you are and what you care about.
+A production-ready persistent memory layer for LLM applications and coding agents. Stores, retrieves, and injects relevant context from past conversations so your AI assistants remember who you are, your architecture rules, habits, and preferences across sessions.
 
-Exposes a [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that any MCP-compatible client (Claude Desktop, Cursor, etc.) can connect to.
+Exposes a standard [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server that connects natively to Claude Desktop, Cursor, OpenClaw, Windsurf, Cline, and any MCP client over HTTP or stdio.
+
+GitHub Repository: [https://github.com/kharshita590/Mnemosyne](https://github.com/kharshita590/Mnemosyne)
 
 ---
 
-## How it works
+## Features
+
+- **Tiered Memory Architecture**:
+  - `working`: Fast in-session scratchpad buffer via Redis (4h TTL).
+  - `episodic`: Event-based interaction records in pgvector with temporal decay.
+  - `long_term`: Persistent user habits, system facts, and preferences.
+  - `semantic`: Cross-conversation distilled knowledge.
+- **Hybrid Retrieval**: Dense vector search (pgvector HNSW) + BM25 keyword search (`tsvector`), combined via Reciprocal Rank Fusion (RRF) and optional Cohere cross-encoder reranking.
+- **Zero-Config Local Embeddings**: Built-in 384-dimension `sentence-transformers` (`BAAI/bge-small-en-v1.5`) runs completely local by default without API costs or external keys.
+- **Sync & Async Ingestion**: Background ingestion with durability tracking, plus synchronous ingestion (`sync=True`) to prevent read-after-write races.
+- **Multi-Client MCP Protocol**: Supports both Server-Sent Events / HTTP (`http://localhost:8080/mcp`) and standard `stdio` transport.
+- **Active Working Memory Bridging**: Automatically recalls active and recent conversation turns during pure retrieval queries.
+
+---
+
+## Architecture Flow
 
 ```
-User message
-     │
-     ▼
-┌─────────────────────────────────────────────────────┐
-│                   Session graph                     │
-│  Load working memory (Redis)                        │
-│       → Retrieve episodic memories (pgvector)       │
-│       → Retrieve long-term facts (pgvector)         │
-│       → Inject memory block into system prompt      │
-│       → Generate LLM response with memory context  │
-└─────────────────────────────────────────────────────┘
-     │
-     ▼
-┌─────────────────────────────────────────────────────┐
-│                  Ingestion graph                    │
-│  LLM extracts key facts from conversation           │
-│       → Auto-select chunk strategy                  │
-│       → Embed chunks (OpenAI text-embedding-3)      │
-│       → Store in pgvector + extracted facts as      │
-│         long-term memories                          │
-└─────────────────────────────────────────────────────┘
+User Message / Tool Call
+          │
+          ▼
+┌────────────────────────────────────────────────────────┐
+│                   Session Pipeline                     │
+│  1. Check Redis working memory (recent turns)          │
+│  2. Hybrid search pgvector (episodic + long-term)      │
+│  3. RRF score fusion + Cohere reranking                │
+│  4. Assemble context window within token budget        │
+└────────────────────────────────────────────────────────┘
+          │
+          ▼
+┌────────────────────────────────────────────────────────┐
+│                  Ingestion Pipeline                    │
+│  1. LLM extracts facts + structured entities           │
+│  2. Classify memory tier (episodic / long_term)        │
+│  3. Chunking (fixed, recursive, structural markdown)   │
+│  4. Local / OpenAI embedding generation                │
+│  5. Dedup, conflict resolution, store in Postgres      │
+└────────────────────────────────────────────────────────┘
 ```
 
-### Memory tiers
-
-| Tier | Storage | TTL | Purpose |
-|---|---|---|---|
-| `working` | Redis | 4 hours | In-session context (current conversation) |
-| `episodic` | Postgres | Decays over time | Specific events and interactions |
-| `long_term` | Postgres | Persistent | Stable facts, preferences, habits |
-| `semantic` | Postgres | Persistent | General knowledge extracted across episodes |
-
-### Retrieval pipeline
-
-Every query runs through **hybrid search** (dense vector + BM25 keyword), **Reciprocal Rank Fusion**, optional **Cohere reranking**, and **token-budget trimming** before memories are returned.
-
 ---
 
-## Prerequisites
+## Quickstart
 
-- Docker and Docker Compose
-- Python 3.11+
-- `pip` or `uv`
-
----
-
-## Setup
-
-### 1. Clone and enter the directory
+### 1. Clone Repository
 
 ```bash
-git clone <repo-url>
-cd mnemosyne
+git clone https://github.com/kharshita590/Mnemosyne.git
+cd Mnemosyne
 ```
 
-### 2. Configure environment
+### 2. Configure Environment
+
+Create `.env` from template:
 
 ```bash
 cp .env.example .env
 ```
 
-Open `.env` and fill in the required values:
+Minimal `.env` for zero-cost local setup (using local embeddings + OpenAI or Claude for extraction):
 
 ```env
-# Required: OpenAI key for embeddings (always needed)
-OPENAI_API_KEY=sk-...
+# Embedding provider (local requires no API key)
+EMBEDDING_PROVIDER=local
+LOCAL_EMBEDDING_MODEL=BAAI/bge-small-en-v1.5
+LOCAL_EMBEDDING_DIMENSIONS=384
 
-# Required: choose one LLM provider for generation
-LLM_PROVIDER=gemini          # anthropic | openai | gemini | local
-GEMINI_API_KEY=your-key      # or ANTHROPIC_API_KEY / OPENAI_API_KEY
+# LLM provider for fact extraction & chat (choose one)
+LLM_PROVIDER=openai
+LLM_MODEL=gpt-4o-mini
+OPENAI_API_KEY=your_openai_api_key_here
 
-# Optional but recommended: Cohere for reranking
-COHERE_API_KEY=
-
-# Optional: Langfuse for observability (get keys at cloud.langfuse.com)
-LANGFUSE_PUBLIC_KEY=pk-lf-...
-LANGFUSE_SECRET_KEY=sk-lf-...
-
-# Optional: encryption at rest for stored memories
-ENCRYPT_KEY=
+# MCP Auth (leave empty or changeme to disable in local dev)
+MCP_API_KEY=
 ```
 
-**LLM provider options:**
+### 3. Run with Docker Compose (Recommended)
 
-| `LLM_PROVIDER` | Default model | Free tier |
-|---|---|---|
-| `gemini` | `gemini-1.5-pro` | Yes — set `LLM_MODEL=gemini-2.0-flash` for best free limits |
-| `anthropic` | `claude-opus-4-8` | No |
-| `openai` | `gpt-4o` | No |
-| `local` | `llama3` via Ollama | Yes — requires Ollama running locally |
-
-To override the model, set `LLM_MODEL=gemini-2.0-flash` (or any model ID).
-
-### 3. Start infrastructure
+One command starts PostgreSQL (with pgvector), Redis, runs Alembic migrations, and boots the Mnemosyne MCP server on port `8080`:
 
 ```bash
-make up
+docker compose up --build -d
 ```
 
-Starts Postgres (with pgvector) on port `5432` and Redis on port `6379` via Docker.
-
-### 4. Install Python dependencies
+Check health:
 
 ```bash
-pip install -e ".[dev]"
-# or with uv:
-uv pip install -e ".[dev]"
+curl http://localhost:8080/health
 ```
 
-### 5. Run database migrations
-
-```bash
-make migrate
-```
-
-### 6. Start the MCP server
-
-```bash
-python mcp/server.py
+Expected output:
+```json
+{"postgres": "ok", "redis": "ok", "status": "healthy"}
 ```
 
 ---
 
-## Using with Claude Desktop
+## Client Setup Guides
 
-Add Mnemosyne as an MCP server so Claude Desktop automatically gains persistent memory.
+### 1. Claude Desktop
 
-Open `~/Library/Application Support/Claude/claude_desktop_config.json` and add:
+Edit your Claude Desktop configuration:
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
+- **Linux**: `~/.config/Claude/claude_desktop_config.json`
+
+#### Option A: HTTP Remote / Docker Setup (Recommended)
+
+When Mnemosyne is running via Docker on port 8080:
 
 ```json
 {
   "mcpServers": {
     "mnemosyne": {
-      "command": "python",
-      "args": ["/absolute/path/to/mnemosyne/mcp/server.py"],
+      "command": "npx",
+      "args": ["-y", "mcp-proxy", "http://localhost:8080/mcp"]
+    }
+  }
+}
+```
+
+#### Option B: Direct Python / Stdio Setup
+
+```json
+{
+  "mcpServers": {
+    "mnemosyne": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory",
+        "/absolute/path/to/Mnemosyne",
+        "python",
+        "-m",
+        "mcp_local.server"
+      ],
       "env": {
-        "PYTHONPATH": "/absolute/path/to/mnemosyne"
+        "MCP_TRANSPORT": "stdio",
+        "DATABASE_URL": "postgresql+asyncpg://mnemosyne:mnemosyne@localhost:5436/mnemosyne",
+        "REDIS_URL": "redis://localhost:6379/0"
       }
     }
   }
 }
 ```
 
-Restart Claude Desktop. A hammer icon will appear in the input bar with 4 memory tools available.
-
-### What Claude can now do
-
-Claude will call memory tools automatically. You can also prompt it directly:
-
-```
-"Remember that I prefer dark mode in all my projects."
-"What do you know about my coding preferences?"
-"Forget everything about my old job."
-"What did we discuss last week about the auth system?"
-```
-
-### Available MCP tools
-
-| Tool | What it does |
-|---|---|
-| `ingest_memory_tool` | Save information from the current conversation |
-| `retrieve_memory_tool` | Search past memories by topic or query |
-| `session_init_tool` | Load all relevant memories at the start of a conversation |
-| `forget_memory_tool` | Delete a specific memory by ID |
-
 ---
 
-## Using with Cursor
+### 2. Cursor
 
-Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per project):
+Add to your project's `.cursor/mcp.json` or global `~/.cursor/mcp.json`:
 
 ```json
 {
   "mcpServers": {
     "mnemosyne": {
-      "command": "python",
-      "args": ["/absolute/path/to/mnemosyne/mcp/server.py"]
+      "url": "http://localhost:8080/mcp"
     }
   }
 }
@@ -193,117 +172,120 @@ Add to `~/.cursor/mcp.json` (global) or `.cursor/mcp.json` (per project):
 
 ---
 
-## Using the Python API directly
+### 3. OpenClaw
 
-```python
-import asyncio
-from mnemosyne.agents.router import Intent, route
+Add Mnemosyne to your OpenClaw configuration (`~/.openclaw/config.yaml` or workspace tools):
 
-async def main():
-    # Store a memory
-    await route(
-        Intent.INGEST,
-        user_id="user-123",
-        content="The user prefers Python over JavaScript and uses VS Code.",
-        conversation_id="conv-abc",
-        tier="long_term",
-    )
+```yaml
+tools:
+  mcp:
+    servers:
+      mnemosyne:
+        url: "http://localhost:8080/mcp"
+        timeoutSeconds: 30
+```
 
-    # Ask a question — memory is retrieved and injected automatically
-    result = await route(
-        Intent.CHAT,
-        user_id="user-123",
-        conversation_id="conv-abc",
-        user_message="What editor should I set up for this project?",
-    )
-    print(result.response)
-    # → "Based on your preference for VS Code, here's how to set it up..."
+Or run via stdio execution profile:
 
-    # Retrieve raw memories without generating a response
-    result = await route(
-        Intent.RETRIEVE,
-        user_id="user-123",
-        query="programming language preferences",
-    )
-    for memory in result.final_memories:
-        print(f"[{memory.tier.value}] {memory.content} (score: {memory.score:.3f})")
-
-asyncio.run(main())
+```yaml
+tools:
+  mcp:
+    servers:
+      mnemosyne:
+        command: "docker"
+        args: ["compose", "exec", "-T", "mnemosyne", "python", "-m", "mcp_local.server"]
+        env:
+          MCP_TRANSPORT: "stdio"
 ```
 
 ---
 
-## Local LLM with Ollama (no API keys)
+### 4. Windsurf / Codeium
 
-Run entirely offline:
+In `~/.codeium/windsurf/mcp_config.json`:
 
-```bash
-# Install Ollama from https://ollama.com, then pull a model
-ollama pull llama3
+```json
+{
+  "mcpServers": {
+    "mnemosyne": {
+      "serverUrl": "http://localhost:8080/mcp"
+    }
+  }
+}
 ```
-
-Set in `.env`:
-
-```env
-LLM_PROVIDER=local
-LOCAL_LLM_BASE_URL=http://localhost:11434
-LOCAL_LLM_MODEL=llama3
-```
-
-> Note: you still need `OPENAI_API_KEY` for embeddings. To remove that dependency, swap the embedding provider to a local model in [`embedding/tiered.py`](embedding/tiered.py) using the `LocalEmbedder` class.
 
 ---
 
-## Background jobs
+### 5. Cline (VS Code Extension)
 
-Run these on a schedule (cron or similar) to keep memories healthy:
+In Cline Settings → MCP Servers (`cline_mcp_settings.json`):
+
+```json
+{
+  "mcpServers": {
+    "mnemosyne": {
+      "url": "http://localhost:8080/mcp",
+      "disabled": false,
+      "autoApprove": [
+        "retrieve_memory_tool",
+        "ingest_memory_tool",
+        "remember_turn_tool"
+      ]
+    }
+  }
+}
+```
+
+---
+
+## Available MCP Tools
+
+| Tool | Parameters | Description |
+|---|---|---|
+| `ingest_memory_tool` | `user_id`, `content`, `conversation_id`, `sync` | Persist facts, decisions, rules, or preferences. Set `sync=True` to block until stored. |
+| `retrieve_memory_tool` | `user_id`, `query`, `conversation_id` | Hybrid search (dense + BM25) across memories and active Redis dialogue turns. |
+| `remember_turn_tool` | `user_id`, `conversation_id`, `role`, `content` | Store dialogue turn in working memory for session summaries. |
+| `session_init_tool` | `user_id`, `conversation_id`, `session_context` | Generate pre-formatted system prompt memory block for new sessions. |
+| `chat_tool` | `user_id`, `conversation_id`, `user_message` | Server-side memory-augmented chat generation. |
+| `end_session_tool` | `user_id`, `conversation_id` | Summarize working memory, store as episodic memory, and flush Redis session. |
+| `forget_memory_tool` | `user_id`, `memory_id` | Delete a single memory by ID. |
+| `forget_memories_tool` | `user_id`, `topic`, `tier`, `before_date`, `confirm` | Preview or bulk-delete memories matching criteria. |
+
+---
+
+## Local Development (Without Docker)
+
+If running outside Docker using `uv`:
 
 ```bash
-# Decay old memories — reduces score of stale episodic/long-term memories
-# Recommended: run nightly
+# 1. Install dependencies
+uv sync --frozen
+
+# 2. Start backing services
+docker run -d --name pg -p 5436:5432 -e POSTGRES_PASSWORD=mnemosyne -e POSTGRES_DB=mnemosyne pgvector/pgvector:pg16
+docker run -d --name redis -p 6379:6379 redis:7-alpine
+
+# 3. Run database migrations
+uv run alembic upgrade head
+
+# 4. Start HTTP MCP server
+uv run python -m mcp_local.server
+```
+
+---
+
+## Maintenance & Periodic Tasks
+
+```bash
+# Sweep decayed memories (run nightly)
 python jobs/decay_sweep.py
 
-# Rebuild BM25 keyword search index
-# Recommended: run after bulk ingestion
-python jobs/index_rebuild.py
+# Retry stuck background ingests
+python jobs/retry_stuck_ingests.py
 ```
 
 ---
 
-## Development
+## License
 
-```bash
-make test    # run test suite
-make lint    # ruff + mypy
-make down    # stop Docker services
-```
-
-### Project structure
-
-```
-mnemosyne/
-├── agents/          # LangGraph pipelines (ingestion, retrieval, session)
-├── chunking/        # Auto-selecting text chunking strategies
-├── config/          # Settings (pydantic-settings) and structured logging
-├── embedding/       # OpenAI and local embedding providers, tiered routing
-├── evals/           # Evaluation harness and golden set
-├── infra/           # Dockerfile
-├── jobs/            # Decay sweep and index rebuild cron jobs
-├── llm/             # LLM providers: Anthropic, OpenAI, Gemini, Local (Ollama)
-├── mcp/             # MCP server and tool definitions
-├── memory/          # Memory types, decay, and access tracking
-├── observability/   # Langfuse tracing, metrics, health check
-├── prompts/         # YAML prompt templates
-├── retrieval/       # Hybrid search, BM25, reranker, RRF, assembler
-└── storage/         # Postgres (pgvector), Redis, S3, encryption, RLS
-```
-
----
-
-## Architecture notes
-
-- **No LLM required to run** — if `LLM_PROVIDER` is unset or the API key is missing, ingestion still stores raw chunks and `session_init` still returns the memory block. You can pass the memory block to your own LLM.
-- **Multi-user** — each call takes a `user_id`. Memories are isolated per user via Postgres row-level security.
-- **Pluggable reranking** — Cohere reranking is optional. Without a `COHERE_API_KEY` the system falls back to RRF ordering.
-- **Chunking is automatic** — the ingestion pipeline inspects content and picks the best strategy: fixed, recursive, sentence-based, or structural (for Markdown/code).
-# Mnemosyne
+MIT License. See [LICENSE](LICENSE) for details.
