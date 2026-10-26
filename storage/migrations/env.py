@@ -1,5 +1,10 @@
 import asyncio
+import os
+import sys
 from logging.config import fileConfig
+
+# Ensure project root is in sys.path when alembic is invoked as CLI
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")))
 
 from alembic import context
 from sqlalchemy.ext.asyncio import async_engine_from_config
