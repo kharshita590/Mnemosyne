@@ -29,6 +29,8 @@ services:
   mnemosyne:
     build: .
     command: sh -c "alembic upgrade head && python mcp_local/server.py"
+    env_file:
+      - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://mnemosyne:mnemosyne@postgres:5432/mnemosyne
       REDIS_URL: redis://redis:6379/0
