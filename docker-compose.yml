@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: mnemosyne
       POSTGRES_USER: mnemosyne
-      POSTGRES_PASSWORD: ***
+      POSTGRES_PASSWORD: mnemosyne
     ports:
       - "5436:5432"
     volumes:
@@ -33,7 +33,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://mnemosyne:mnemosyne@postgres:5432/mnemosyne
       REDIS_URL: redis://redis:6379/0
       EMBEDDING_PROVIDER: local
-      MCP_API_KEY: ***
+      MCP_API_KEY: ""
       PORT: 8080
     ports:
       - "8080:8080"
