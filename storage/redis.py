@@ -213,3 +213,10 @@ async def set_last_conversation_id(user_id: str, conversation_id: str, ttl_days:
 
 
 async def ping() -> bool:
+    try:
+        result = await get_client().ping()
+        _reset_circuit()
+        return result
+    except Exception:
+        _trip_circuit()
+        return False
