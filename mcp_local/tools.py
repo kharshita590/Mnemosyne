@@ -17,7 +17,12 @@ from storage.pg import (
     search_memories_by_topic,
     upsert_user,
 )
-from storage.redis import append_to_working_memory, get_working_memory
+from storage.redis import (
+    append_to_working_memory,
+    get_last_conversation_id,
+    get_working_memory,
+    set_last_conversation_id,
+)
 
 
 async def _run_ingest(job_id: _uuid.UUID, user_id: str, content: str, conversation_id: str) -> None:
@@ -40,20 +45,21 @@ async def ingest_memory(
     user_id: str,
     content: str,
     conversation_id: str = "",
+    sync: bool = False,
 ) -> dict:
     """
     Store new information from the current conversation.
-    Returns immediately with a job_id — ingestion runs in the background.
-    Tier is automatically classified by the LLM during ingestion.
-
-    The job is persisted to Postgres as 'pending' *before* scheduling the
-    background task. If the server crashes mid-ingestion, the row survives
-    and jobs/retry_stuck_ingests.py can find and replay it.
+    If sync=True, waits for the ingestion pipeline to finish before returning.
+    Otherwise returns immediately with a job_id (runs in background).
     """
     clean_content = sanitize_input(content)
     job = await create_ingest_job(
         user_external_id=user_id, content=clean_content, conversation_id=conversation_id
     )
+
+    if sync:
+        await _run_ingest(job.id, user_id, clean_content, conversation_id)
+        return {"success": True, "job_id": str(job.id), "status": "completed"}
 
     # Scheduled only after the durable record exists — a crash before this line
     # loses nothing; a crash after it leaves a recoverable 'pending' row.
@@ -95,9 +101,13 @@ async def retrieve_memory(
         for m in state.get("final_memories", [])
     ]
 
-    # Check active Redis working memory turns if conversation_id was provided
-    if conversation_id:
-        active_turns = await get_working_memory(user_id, conversation_id)
+    # Check active Redis working memory turns
+    target_conv = conversation_id
+    if not target_conv:
+        target_conv = await get_last_conversation_id(user_id) or ""
+
+    if target_conv:
+        active_turns = await get_working_memory(user_id, target_conv)
         query_lower = clean_query.lower()
         for idx, turn in enumerate(active_turns):
             turn_content = turn.get("content", "")
@@ -105,7 +115,7 @@ async def retrieve_memory(
                 memories.insert(
                     0,
                     {
-                        "id": f"wm-{conversation_id}-{idx}",
+                        "id": f"wm-{target_conv}-{idx}",
                         "content": sanitize_output(turn_content),
                         "tier": "working",
                         "score": 1.0,
@@ -124,6 +134,9 @@ async def session_init(
     Called at the start of a new conversation. Returns a memory block
     formatted for injection into the system prompt.
     """
+    if conversation_id:
+        await set_last_conversation_id(user_id, conversation_id)
+
     state = await route(
         Intent.SESSION_INIT,
         user_id=user_id,
@@ -161,6 +174,8 @@ async def remember_turn(
     await append_to_working_memory(
         user_id, conversation_id, {"role": role, "content": clean_content}
     )
+    if conversation_id:
+        await set_last_conversation_id(user_id, conversation_id)
     return {"success": True}
 
 
@@ -179,6 +194,9 @@ async def chat(
     if no LLM provider is configured, since there is nothing to generate with.
     """
     clean_message = sanitize_input(user_message)
+
+    if conversation_id:
+        await set_last_conversation_id(user_id, conversation_id)
 
     state = await route(
         Intent.CHAT,

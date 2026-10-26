@@ -50,6 +50,7 @@ async def ingest_memory_tool(
     user_id: str,
     content: str,
     conversation_id: str = "",
+    sync: bool = False,
     api_key: str = "",
 ) -> dict:
     """
@@ -57,10 +58,11 @@ async def ingest_memory_tool(
     persistent long-term memory for immediate semantic and hybrid retrieval.
     Always call this whenever the user expresses a preference, profile detail,
     or project rule that should persist across future sessions.
+    Set sync=True to wait for the ingestion pipeline before returning.
     """
     if err := _check_auth(api_key):
         return err
-    return await ingest_memory(user_id, content, conversation_id)
+    return await ingest_memory(user_id, content, conversation_id, sync=sync)
 
 
 @mcp.tool()

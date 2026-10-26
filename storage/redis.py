@@ -184,11 +184,32 @@ async def get_cached_embedding(text_hash: str) -> list[float] | None:
         return None
 
 
-async def ping() -> bool:
+async def get_last_conversation_id(user_id: str) -> str | None:
+    if _is_circuit_open():
+        return None
     try:
-        result = await get_client().ping()
+        raw = await get_client().get(f"last_conv:{user_id}")
         _reset_circuit()
-        return result
-    except Exception:
+        return raw
+    except Exception as e:
+        logger.warning("redis_get_last_conv_failed", error=str(e))
         _trip_circuit()
-        return False
+        return None
+
+
+async def set_last_conversation_id(user_id: str, conversation_id: str, ttl_days: int = 7) -> None:
+    if _is_circuit_open() or not conversation_id:
+        return
+    try:
+        await get_client().setex(
+            f"last_conv:{user_id}",
+            ttl_days * 86400,
+            conversation_id,
+        )
+        _reset_circuit()
+    except Exception as e:
+        logger.warning("redis_set_last_conv_failed", error=str(e))
+        _trip_circuit()
+
+
+async def ping() -> bool:
