@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     local_llm_model: str = "llama3"
 
     # Embedding provider: openai | local
-    embedding_provider: str = "openai"
+    embedding_provider: str = "local"
 
     # OpenAI embedding settings (used when embedding_provider = "openai")
     embedding_model: str = "text-embedding-3-small"

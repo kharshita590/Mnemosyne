@@ -23,5 +23,6 @@ def get_embedder_for_tier(tier: MemoryTier) -> EmbeddingProvider:
     elif tier in (MemoryTier.WORKING, MemoryTier.EPISODIC):
         base = OpenAIEmbedder(model=settings.embedding_model, dimensions=settings.embedding_dimensions)
     else:
-        base = OpenAIEmbedder(model="text-embedding-3-large", dimensions=3072)
+        # ponytail: OpenAI embeddings match table schema vector dimensions; resize db column if 3072 dims needed
+        base = OpenAIEmbedder(model=settings.embedding_model, dimensions=settings.embedding_dimensions)
     return CachedEmbedder(base)
