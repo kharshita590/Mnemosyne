@@ -4,7 +4,7 @@ services:
     environment:
       POSTGRES_DB: mnemosyne
       POSTGRES_USER: mnemosyne
-      POSTGRES_PASSWORD: mnemosyne
+      POSTGRES_PASSWORD: ***
     ports:
       - "5436:5432"
     volumes:
@@ -25,6 +25,23 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  mnemosyne:
+    build: .
+    command: sh -c "alembic upgrade head && python mcp_local/server.py"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mnemosyne:mnemosyne@postgres:5432/mnemosyne
+      REDIS_URL: redis://redis:6379/0
+      EMBEDDING_PROVIDER: local
+      MCP_API_KEY: ***
+      PORT: 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   pgdata:
