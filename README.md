@@ -238,6 +238,44 @@ In Cline Settings → MCP Servers (`cline_mcp_settings.json`):
 
 ---
 
+### 6. OpenCode
+
+In your OpenCode settings or config file (`~/.config/opencode/opencode.json` or project-level `opencode.json`):
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "mnemosyne": {
+        "type": "http",
+        "url": "http://localhost:8080/mcp"
+      }
+    }
+  }
+}
+```
+
+Or for stdio execution via Docker:
+
+```json
+{
+  "mcp": {
+    "servers": {
+      "mnemosyne": {
+        "type": "stdio",
+        "command": "docker",
+        "args": ["compose", "exec", "-T", "mnemosyne", "python", "-m", "mcp_local.server"],
+        "env": {
+          "MCP_TRANSPORT": "stdio"
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
 ## Available MCP Tools
 
 | Tool | Parameters | Description |

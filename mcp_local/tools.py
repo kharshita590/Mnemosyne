@@ -112,13 +112,14 @@ async def retrieve_memory(
         for idx, turn in enumerate(active_turns):
             turn_content = turn.get("content", "")
             if query_lower in turn_content.lower():
+                # ponytail: calibrated working-memory turn score to 0.035 to keep it competitive with top fused long-term RRF scores (~0.02-0.03) without completely overshadowing them
                 memories.insert(
                     0,
                     {
                         "id": f"wm-{target_conv}-{idx}",
                         "content": sanitize_output(turn_content),
                         "tier": "working",
-                        "score": 1.0,
+                        "score": 0.035,
                     },
                 )
 

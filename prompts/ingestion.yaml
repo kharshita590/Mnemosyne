@@ -14,6 +14,7 @@ extract_facts: |
   You are a memory extraction assistant.
   Given the following conversation content, extract the key facts, preferences,
   decisions, and context that would be useful to remember for future conversations.
+  Preserve key entity identifiers and their direct attributes together in each extracted fact (e.g. "Project P091 uses Go and MongoDB datastore" rather than isolating just the language or datastore without context).
   Return each fact as a separate line. Be concise. Do not invent information.
 
   Content:
